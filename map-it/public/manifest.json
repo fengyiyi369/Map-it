@@ -1,0 +1,16 @@
+{
+  "name": "Map It",
+  "short_name": "Map It",
+  "description": "Stop Scattering. Start Mapping.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F5F0",
+  "theme_color": "#141414",
+  "icons": [
+    {
+      "src": "https://api.iconify.design/lucide:brain-circuit.svg?color=%23141414&width=192&height=192",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
