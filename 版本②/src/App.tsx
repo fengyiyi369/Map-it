@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Cloud, Folder as FolderIcon, ExternalLink, Plus, LayoutGrid, List,
   ArrowLeft, Cat, Dog, Flower2, Coins, ChevronRight, Edit2, Trash2,
-  Check, X, LogOut, Loader2, Save, Inbox, MoveRight, Bell, Clipboard,
+  Check, X, LogOut, Loader2, Save, Inbox, MoveRight, Bell,
 } from 'lucide-react';
 import { AppScreen, Folder, Note, ViewMode, InboxItem } from './types';
 import { supabase } from './supabase';
@@ -222,9 +222,6 @@ export default function App() {
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [loadingData, setLoadingData] = useState(false);
   const [saving, setSaving] = useState(false);
-  // Clipboard detection
-  const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
-  const [clipboardDismissed, setClipboardDismissed] = useState(false);
 
   // Session check
   useEffect(() => {
@@ -259,28 +256,6 @@ export default function App() {
       setScreen('inbox');
     }
   }, [user]);
-
-  // Clipboard detection — fires when app is focused (e.g. user switches back from another app)
-  useEffect(() => {
-    if (!user) return;
-    const checkClipboard = async () => {
-      try {
-        if (!navigator.clipboard?.readText) return;
-        const text = await navigator.clipboard.readText();
-        const isUrl = /^https?:\/\//.test(text.trim());
-        if (isUrl && text.trim() !== clipboardUrl) {
-          setClipboardUrl(text.trim());
-          setClipboardDismissed(false);
-        }
-      } catch {
-        // Permission denied or not supported — silently ignore
-      }
-    };
-    // Check on mount and whenever window regains focus
-    checkClipboard();
-    window.addEventListener('focus', checkClipboard);
-    return () => window.removeEventListener('focus', checkClipboard);
-  }, [user, clipboardUrl]);
 
   // Load data
   useEffect(() => {
@@ -341,21 +316,6 @@ export default function App() {
     await supabase.from('inbox').delete().eq('id', id);
   };
 
-  const saveFromClipboard = async () => {
-    if (!clipboardUrl || !user) return;
-    const newItem: InboxItem = {
-      id: Date.now().toString(),
-      url: clipboardUrl,
-      title: clipboardUrl,
-      saved_at: new Date().toISOString(),
-    };
-    await supabase.from('inbox').insert({ ...newItem, user_id: user.id });
-    setInboxItems(prev => [newItem, ...prev]);
-    setClipboardUrl(null);
-    setClipboardDismissed(false);
-    setScreen('inbox');
-  };
-
   const handleLogout = async () => { await supabase.auth.signOut(); setFolders([]); setInboxItems([]); setScreen('splash'); };
 
   if (!authChecked) return (
@@ -373,45 +333,6 @@ export default function App() {
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
             className="fixed top-4 right-4 z-50 flex items-center gap-2 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full shadow-sm text-xs text-gray-500 border border-black/5">
             <Save size={12} className="animate-pulse" />同步中…
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Clipboard detection toast */}
-      <AnimatePresence>
-        {clipboardUrl && !clipboardDismissed && (
-          <motion.div
-            initial={{ opacity: 0, y: 60 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 60 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-            className="fixed bottom-6 left-4 right-4 z-50 max-w-sm mx-auto"
-          >
-            <div className="bg-[#141414] text-white rounded-2xl p-4 shadow-2xl">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="w-8 h-8 bg-white/10 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-                  <Clipboard size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white/60 uppercase tracking-wider mb-0.5">检测到剪贴板链接</p>
-                  <p className="text-sm font-medium truncate">{clipboardUrl}</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={saveFromClipboard}
-                  className="flex-1 py-2.5 bg-white text-black rounded-xl text-sm font-bold hover:bg-white/90 transition-colors"
-                >
-                  存入收件箱
-                </button>
-                <button
-                  onClick={() => { setClipboardDismissed(true); }}
-                  className="py-2.5 px-4 bg-white/10 rounded-xl text-sm text-white/60 hover:bg-white/20 transition-colors"
-                >
-                  忽略
-                </button>
-              </div>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
