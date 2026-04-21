@@ -260,27 +260,35 @@ export default function App() {
     }
   }, [user]);
 
-  // Clipboard detection — fires when app is focused (e.g. user switches back from another app)
-  useEffect(() => {
-    if (!user) return;
-    const checkClipboard = async () => {
-      try {
-        if (!navigator.clipboard?.readText) return;
-        const text = await navigator.clipboard.readText();
-        const isUrl = /^https?:\/\//.test(text.trim());
-        if (isUrl && text.trim() !== clipboardUrl) {
+  // Clipboard: manual trigger only (auto-read blocked by Safari)
+  const checkClipboardManual = async () => {
+    try {
+      if (!navigator.clipboard?.readText) {
+        // Fallback: prompt user to paste
+        const text = prompt('粘贴链接：');
+        if (text && /^https?:\/\//.test(text.trim())) {
           setClipboardUrl(text.trim());
           setClipboardDismissed(false);
         }
-      } catch {
-        // Permission denied or not supported — silently ignore
+        return;
       }
-    };
-    // Check on mount and whenever window regains focus
-    checkClipboard();
-    window.addEventListener('focus', checkClipboard);
-    return () => window.removeEventListener('focus', checkClipboard);
-  }, [user, clipboardUrl]);
+      const text = await navigator.clipboard.readText();
+      const isUrl = /^https?:\/\//.test(text.trim());
+      if (isUrl) {
+        setClipboardUrl(text.trim());
+        setClipboardDismissed(false);
+      } else {
+        alert('剪贴板里没有检测到链接，请先在其他App复制链接后再试');
+      }
+    } catch {
+      // User denied — show paste prompt as fallback
+      const text = prompt('请手动粘贴链接：');
+      if (text && /^https?:\/\//.test(text.trim())) {
+        setClipboardUrl(text.trim());
+        setClipboardDismissed(false);
+      }
+    }
+  };
 
   // Load data
   useEffect(() => {
@@ -420,7 +428,7 @@ export default function App() {
         {screen === 'splash' && (
           <SplashScreen userEmail={user.email ?? ''} onStart={() => setScreen('canvas')}
             onLogout={handleLogout} loading={loadingData} inboxCount={inboxItems.length}
-            onInbox={() => setScreen('inbox')} />
+            onInbox={() => setScreen('inbox')} onPasteLink={checkClipboardManual} />
         )}
         {screen === 'canvas' && (
           <MapCanvas folders={folders} viewMode={viewMode} setViewMode={setViewMode}
@@ -447,9 +455,9 @@ export default function App() {
 
 // ─── Splash ───────────────────────────────────────────────────────────────────
 
-function SplashScreen({ userEmail, onStart, onLogout, loading, inboxCount, onInbox }: {
+function SplashScreen({ userEmail, onStart, onLogout, loading, inboxCount, onInbox, onPasteLink }: {
   userEmail: string; onStart: () => void; onLogout: () => void;
-  loading: boolean; inboxCount: number; onInbox: () => void;
+  loading: boolean; inboxCount: number; onInbox: () => void; onPasteLink: () => void;
 }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -469,22 +477,34 @@ function SplashScreen({ userEmail, onStart, onLogout, loading, inboxCount, onInb
         </motion.button>
       )}
 
-      <div className="text-center mb-20">
+      <div className="text-center mb-16">
         <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}
-          className="font-serif text-[56px] font-bold mb-[80px]">Map It</motion.h1>
+          className="font-serif text-[56px] font-bold mb-[60px]">Map It</motion.h1>
         <motion.p initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }}
           className="text-2xl text-[#666666] font-medium">Stop Scattering. Start Mapping.</motion.p>
       </div>
 
-      <div className="flex flex-col items-center gap-3 mb-24 z-10">
+      <div className="flex flex-col items-center gap-3 mb-24 z-10 w-full max-w-xs">
         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
           onClick={onStart} disabled={loading}
-          className="px-10 py-4 bg-[#141414] text-white rounded-full text-lg font-medium shadow-lg flex items-center gap-3 disabled:opacity-60">
+          className="w-full px-10 py-4 bg-[#141414] text-white rounded-full text-lg font-medium shadow-lg flex items-center justify-center gap-3 disabled:opacity-60">
           {loading && <Loader2 size={20} className="animate-spin" />}
           {loading ? '加载数据…' : '打开工作台'}
         </motion.button>
+
+        {/* Paste link button — main quick-capture entry */}
+        <motion.button
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={onPasteLink}
+          className="w-full py-4 bg-white border-2 border-dashed border-gray-300 rounded-full text-base font-bold text-gray-500 flex items-center justify-center gap-2 hover:border-gray-400 hover:text-gray-700 transition-all shadow-sm"
+        >
+          <Clipboard size={18} />
+          粘贴链接存入收件箱
+        </motion.button>
+
         {inboxCount > 0 && (
-          <button onClick={onInbox} className="flex items-center gap-2 text-sm text-blue-500 font-bold hover:underline">
+          <button onClick={onInbox} className="flex items-center gap-2 text-sm text-blue-500 font-bold hover:underline mt-1">
             <Inbox size={16} />整理收件箱 ({inboxCount})
           </button>
         )}
